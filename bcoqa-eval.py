@@ -117,6 +117,10 @@ class BCoQAEvaluator():
         unknown_count = 0
         sum_yesno_em = 0
         sum_unknown_em = 0
+        small_count = 0
+        small_count_f1 = 0
+        long_count = 0
+        long_count_f1 = 0
         for key in exact_scores.keys():
             if self.gold_data[key] == 'হ্যাঁ।' or self.gold_data[key] == 'না।':
                 yesno_count += 1
@@ -124,10 +128,18 @@ class BCoQAEvaluator():
             elif self.gold_data[key] == 'অজানা।':
                 unknown_count += 1
                 sum_unknown_em += exact_scores[key]
+            elif len(self.gold_data[key].split()) < 3:
+                small_count += 1
+                small_count_f1 += f1_scores[key]
+            else:
+                long_count += 1
+                long_count_f1 += f1_scores[key]
         return {'average_em': total_scores['exact'], 
                 'average_f1': total_scores['f1'], 
                 'yesno_em': sum_yesno_em/yesno_count, 
-                'unknown_em': sum_unknown_em/unknown_count}
+                'unknown_em': sum_unknown_em/unknown_count,
+                'small_f1': small_count_f1/small_count,
+                'long_f1': long_count_f1/long_count}
     
     def get_total_scores(self, exact_scores, f1_scores):
         """
@@ -194,7 +206,10 @@ def main():
     if OPTS.pred_file:
         with open(OPTS.pred_file) as f:
             pred_data = BCoQAEvaluator.preds_to_dict(OPTS.pred_file)
-        print(json.dumps(evaluator.model_performance(pred_data), indent=2))
+        with open("result.json", "w") as f:
+            result = json.dumps(evaluator.model_performance(pred_data), indent=2)
+            f.write(result)
+            print(result)
 
 if __name__ == '__main__':
     OPTS = parse_args()
