@@ -61,16 +61,18 @@ class BCoQAEvaluator():
 
     @staticmethod
     def normalize_answer(s):
-        """Remove punctuation, storys and extra whitespace."""
-        
-        def white_space_fix(text):
-            return ' '.join(text.split())
+        """Remove punctuation, unnecessary words for f1 scoring and extra whitespace."""
 
         def remove_punc(text):
             sentence = re.sub(r'[^\u0980-\u09FF\s]', '', text)
             return sentence
+        
+        def remove_stopwords_whitespace(text):
+            with open('stopwords.txt', 'r', encoding='utf-8') as f:
+                stopwords = [word.strip() for word in f.readlines()]
+            return ' '.join([word for word in text.split() if word not in stopwords])
 
-        return white_space_fix(remove_punc(s))
+        return remove_stopwords_whitespace(remove_punc(s))
 
     @staticmethod
     def get_tokens(s):
@@ -98,10 +100,48 @@ class BCoQAEvaluator():
         return f1
     
     def model_performance(self, pred_data):
+        """
+        Calculates the performance metrics of the model based on the predicted data.
+
+        Args:
+            pred_data (dict): A dictionary containing the predicted data.
+
+        Returns:
+            dict: A dictionary containing the performance metrics including average exact match (average_em),
+                  average F1 score (average_f1), F1 score for yes/no answers (yesno_f1), F1 score for unknown answers (unknown_f1),
+                  exact match score for yes/no answers (yesno_em), and exact match score for unknown answers (unknown_em).
+        """
         exact_scores, f1_scores = self.get_raw_scores(pred_data)
-        return self.get_total_scores(exact_scores, f1_scores)
+        total_scores = self.get_total_scores(exact_scores, f1_scores)
+        yesno_count = 0
+        unknown_count = 0
+        sum_yesno_em = 0
+        sum_unknown_em = 0
+        for key in exact_scores.keys():
+            if self.gold_data[key] == 'হ্যাঁ।' or self.gold_data[key] == 'না।':
+                yesno_count += 1
+                sum_yesno_em += exact_scores[key]
+            elif self.gold_data[key] == 'অজানা।':
+                unknown_count += 1
+                sum_unknown_em += exact_scores[key]
+        return {'average_em': total_scores['exact'], 
+                'average_f1': total_scores['f1'], 
+                'yesno_em': sum_yesno_em/yesno_count, 
+                'unknown_em': sum_unknown_em/unknown_count}
     
     def get_total_scores(self, exact_scores, f1_scores):
+        """
+        Calculates the total scores for exact match (EM) and F1 score.
+
+        Args:
+            exact_scores (dict): A dictionary containing the exact match scores for each key.
+            f1_scores (dict): A dictionary containing the F1 scores for each key.
+
+        Returns:
+            dict: A dictionary containing the total scores for exact match (EM) and F1 score.
+                The keys are 'exact' and 'f1', and the values are the average scores.
+
+        """
         sum_f1 = 0
         sum_em = 0
         for key in exact_scores:
@@ -111,7 +151,17 @@ class BCoQAEvaluator():
         return {'exact': sum_em/total, 'f1': sum_f1/total}
     
     def get_raw_scores(self, pred_data):
-        ''''Returns a dict with score with each turn prediction'''
+        """
+        Computes the raw scores for each prediction in the given `pred_data`.
+
+        Args:
+            pred_data (dict): A dictionary containing the predicted data.
+
+        Returns:
+            tuple: A tuple containing two dictionaries - `exact_scores` and `f1_scores`.
+                - `exact_scores`: A dictionary mapping (story_id, turn_id) tuples to exact match scores.
+                - `f1_scores`: A dictionary mapping (story_id, turn_id) tuples to F1 scores.
+        """
         exact_scores = {}
         f1_scores = {}
         for story_id, turn_id in self.gold_data:
